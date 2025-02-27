@@ -7,9 +7,10 @@ from dieroller import roll_dice, roll_4df, get_fate_ladder_descriptor, get_succe
 SYS_MODE = "BESM"
 CONFIG_FILE = "pinned.txt"
 INPUT_LOG_FILE = "userinput.log"
-TRIGGER_KEY = "ctrl+å"  # Change this to your desired key combination
-TRIGGER_KEY_CAPTURE = "ctrl+enter"
-TRIGGER_KEY_ROLL = "ctrl+ö"
+# Fixme: localizations for different systems
+TRIGGER_KEY = "oikea ctrl+å"  # Change this to your desired key combination
+TRIGGER_KEY_CAPTURE = "oikea ctrl+enter"
+TRIGGER_KEY_ROLL = "oikea ctrl+ö"
 
 
 def generate_h_f_file():
@@ -99,6 +100,7 @@ def add_header_footer():
 
             # Simulate Ctrl+V (Paste)
             keyboard.press_and_release("ctrl+v")
+            time.sleep(0.05)
             print("Multiline header and footer added and pasted!")
         else:
             print(
@@ -189,10 +191,6 @@ if __name__ == "__main__":
         )
         header = "--- DEFAULT HEADER ---\n(Multiline Default)"
         footer = "--- DEFAULT FOOTER ---\n(Multiline Default)"
-
-    print(
-        "Make sure you have installed 'keyboard' and 'pyperclip' libraries (pip install keyboard pyperclip)"
-    )
 
     keyboard.add_hotkey(TRIGGER_KEY, lambda: add_header_footer())
     keyboard.add_hotkey(TRIGGER_KEY_CAPTURE, lambda: capture_input(deselect=True))
