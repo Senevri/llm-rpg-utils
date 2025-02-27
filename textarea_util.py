@@ -2,11 +2,31 @@ import keyboard
 import pyperclip
 import time
 import os
+from dieroller import roll_dice, roll_4df, get_fate_ladder_descriptor, get_success_description
 
+SYS_MODE = "BESM"
 CONFIG_FILE = "pinned.txt"
 INPUT_LOG_FILE = "userinput.log"
 TRIGGER_KEY = "ctrl+å"  # Change this to your desired key combination
 TRIGGER_KEY_CAPTURE = "ctrl+enter"
+TRIGGER_KEY_ROLL = "ctrl+ö"
+
+
+def generate_h_f_file():
+    print(
+        f"Configuration file '{CONFIG_FILE}' not found. Creating a default file with multiline example."
+    )
+    with open(CONFIG_FILE, "w") as f:
+        f.write("[HEADER_START]\n")
+        f.write("This is the default multiline header.\n")
+        f.write("You can have multiple lines here.\n")
+        f.write("[HEADER_END]\n")
+        f.write("[FOOTER_START]\n")
+        f.write("This is the default multiline footer.\n")
+        f.write("It can also span across lines.\n")
+        f.write("[FOOTER_END]\n")
+    print(f"Please edit '{CONFIG_FILE}' to customize your multiline header and footer.")
+    return ("", "")
 
 
 def load_header_footer_from_file():
@@ -18,21 +38,7 @@ def load_header_footer_from_file():
     footer = None
     try:
         if not os.path.exists(CONFIG_FILE):
-            print(
-                f"Configuration file '{CONFIG_FILE}' not found. Creating a default file with multiline example."
-            )
-            with open(CONFIG_FILE, "w") as f:
-                f.write("[HEADER_START]\n")
-                f.write("This is the default multiline header.\n")
-                f.write("You can have multiple lines here.\n")
-                f.write("[HEADER_END]\n")
-                f.write("[FOOTER_START]\n")
-                f.write("This is the default multiline footer.\n")
-                f.write("It can also span across lines.\n")
-                f.write("[FOOTER_END]\n")
-            print(f"Please edit '{CONFIG_FILE}' to customize your multiline header and footer.")
-            return None
-
+            return generate_h_f_file()
         with open(CONFIG_FILE, "r", encoding="UTF-8") as f:
             content = f.read()
 
@@ -83,20 +89,8 @@ def add_header_footer():
     """
     try:
         header, footer = load_header_footer_from_file()
-        # Simulate Ctrl+A (Select All)
-        keyboard.press_and_release("ctrl+a")
-        time.sleep(0.05)
 
-        # Simulate Ctrl+X (Cut)
-        keyboard.press_and_release("ctrl+x")
-        time.sleep(0.05)
-
-        # Get text from clipboard
-        text_content = pyperclip.paste()
-
-        if text_content:
-            with open(INPUT_LOG_FILE, "at", encoding="UTF-8") as file:
-                file.write(f"{text_content}\n---\n")
+        if text_content := capture_input():
             # Add header and footer
             modified_text = f"{header}\n{text_content}\n{footer}"
 
@@ -116,7 +110,7 @@ def add_header_footer():
         print("Make sure you have selected text in the textarea before pressing the hotkey.")
 
 
-def capture_input():
+def capture_input(deselect=False):
     try:
         # Simulate Ctrl+A (Select All)
         keyboard.press_and_release("ctrl+a")
@@ -125,18 +119,62 @@ def capture_input():
         # Simulate Ctrl+X (Cut)
         keyboard.press_and_release("ctrl+c")
         time.sleep(0.05)
-        keyboard.press_and_release("right")
+        if deselect:
+            keyboard.press_and_release("right")
         # Get text from clipboard
         text_content = pyperclip.paste()
 
         if text_content:
             with open(INPUT_LOG_FILE, "at", encoding="UTF-8") as file:
                 file.write(f"{text_content}\n---\n")
+        return text_content
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+def insert_roll_result():
+    try:
+        if text_content := capture_input():
+            print(text_content)
+            begin = text_content.index("{")
+            if begin == -1:
+                return
+            end = begin + text_content[begin + 1 :].index("}")
+            rollcmd = text_content[begin + 1 : end + 1]
+            # print(f"rolling... {rollcmd}")
+            target, difficulty, bonus = (int(x) for x in rollcmd.split(","))
+
+            if SYS_MODE == "BESM":
+                die1, die2, total, modified_total, difference, result_description = roll_dice(
+                    target, difficulty, bonus
+                )
+            if SYS_MODE == "Fate":
+                # target ==
+                result = roll_4df()
+                total_result = target + bonus + result
+                quality = get_fate_ladder_descriptor(total_result)
+                outcome = get_success_description((target + bonus + result), difficulty)
+                result_description = f"{quality} ({total_result}: {outcome})"
+            modified_text = text_content[:begin] + result_description + text_content[end + 2 :]
+            # Copy modified text to clipboard
+            pyperclip.copy(modified_text)
+
+            # Simulate Ctrl+V (Paste)
+            keyboard.press_and_release("ctrl+v")
     except Exception as e:
         print(f"An error occurred: {e}")
 
 
 if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            if ".txt" in arg:
+                CONFIG_FILE = arg
+            if arg == "-f":
+                SYS_MODE = "Fate"
+
     header_footer_values = load_header_footer_from_file()
 
     if header_footer_values:
@@ -157,6 +195,6 @@ if __name__ == "__main__":
     )
 
     keyboard.add_hotkey(TRIGGER_KEY, lambda: add_header_footer())
-    keyboard.add_hotkey(TRIGGER_KEY_CAPTURE, lambda: capture_input())
-
+    keyboard.add_hotkey(TRIGGER_KEY_CAPTURE, lambda: capture_input(deselect=True))
+    keyboard.add_hotkey(TRIGGER_KEY_ROLL, lambda: insert_roll_result())
     keyboard.wait()
