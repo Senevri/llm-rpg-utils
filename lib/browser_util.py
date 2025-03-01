@@ -1,3 +1,4 @@
+from math import e
 import re
 import pygetwindow as gw
 import logging
@@ -11,15 +12,7 @@ from bs4 import BeautifulSoup
 
 logger = get_custom_logger(__file__, "browser_util", add_date=True, console=True)
 
-browsers = [
-    "chrome",
-    "firefox",
-    "edge",
-    "opera",
-    "thorium",
-    "brave",
-    "safari",
-]
+browsers = ["chrome", "firefox", "edge", "opera", "thorium", "brave", "safari", "joplin"]
 
 
 def get_active_window():
@@ -36,7 +29,8 @@ def is_browser_window(active_window):
 
     for browser in browsers:
         if browser in title.lower():
-            return True
+            logger.info(f"Recognized {browser} window.")
+            return browser
     return False
 
 
@@ -51,16 +45,9 @@ def get_active_browser_content():
         documents = dlg.descendants(control_type="Document")
         # Get the HTML content of the page
         doc_texts = [document.window_text() for document in documents]
-        # for text in doc_texts:
-        #     logger.debug(text)
-
-        # text_content = documents.window_text()
-        # logger.debug(html_content)
-        # soup = BeautifulSoup(html_content, "html.parser")
-        # body_content = soup.find("body").text
         return doc_texts
     else:
-        return "Active window is not a browser."
+        return ""
 
 
 def find_first_tag(content, begin_tag):
@@ -132,9 +119,45 @@ def split_blocks(content, begin_tag, end_tags):
         end_tags = [end_tags]
     if isinstance(begin_tag, str):
         begin_tag = [begin_tag]
-    pattern = create_pattern(begin_tag + end_tags)
+    tags = list(set(begin_tag + end_tags))
+    pattern = create_pattern(tags)
     chunks = re.split(pattern, content)
     return chunks
+
+
+def split_app_text(text, begin_tags, end_tags, removable_content, ignore_until_begin=False):
+    # logger.info(f"Splitting text: \n{text[:80]}...")
+    logger.info(f"Splitting with tags: {begin_tags}, {end_tags}")
+    try:
+        if ignore_until_begin:
+            tags = begin_tags + end_tags
+            tag = find_first_tag(text, tags)
+            if tag:
+                logger.warning(f"Ignoring content until tag: {tag}")
+                text = text[text.find(tag) :]
+        blocks = split_blocks(text, begin_tags, end_tags)
+        removable_content_set = set(removable_content)
+        blocks = [
+            block
+            for block in blocks
+            if not any(content in block for content in removable_content_set)
+        ]
+        blocks = [block for block in blocks if block.strip()]
+        return blocks
+    except Exception as e:
+        logger.error(f"Error splitting text: {text} with tags: {begin_tags}, {end_tags}")
+        raise e
+
+
+def split_joplin_text(text):
+    begin_tags = "<begin>"
+    end_tags = "<end>"
+    removable_content = [
+        "          Click to add tags...        ",
+        " en             \uf60f \uf044",
+    ]  # "          Click to add tags...        "
+
+    return split_app_text(text, begin_tags, end_tags, removable_content, ignore_until_begin=True)
 
 
 def split_chatgpt_text(text):
@@ -150,36 +173,43 @@ def split_chatgpt_text(text):
         "Ask anything            Search    Reason         ChatGPT can make mistakes.",
         "ChatGPT  Share      ",
     )
-
-    try:
-        blocks = split_blocks(text, begin_tags, end_tags)
-        removable_content_set = set(removable_content)
-        blocks = [
-            block
-            for block in blocks
-            if not any(content in block for content in removable_content_set)
-        ]
-        return blocks
-    except Exception as e:
-        logger.error(f"Error splitting text: {text} with tags: {begin_tags}, {end_tags}")
-        raise e
+    return split_app_text(text, begin_tags, end_tags, removable_content)
 
 
-def split_chatgpt_content(content):
-    blocks = []
+def get_name_by_app(app, **kwargs):
+    name = ">>>"
+    if app == "chatgpt":
+        if "index" in kwargs:
+            i = kwargs["index"]
+            name = "User" if is_even(i) else "LLM"
+
+    return name
+
+
+def split_app_content(content, app="chatgpt", custom_function=None):
+    functions = {
+        "chatgpt": split_chatgpt_text,
+        "joplin": split_joplin_text,
+    }
+    if custom_function:  # add custom function
+        functions[app] = custom_function
+
+    logger.info("Content length: " + str(len(content)))
     for text in content:
-        if len(text) > 0:
-            blocks.extend(split_chatgpt_text(text))
-
+        blocks = functions[app](text)
         blocks = [block for block in blocks if len(block) > 0]
 
         for i, block in enumerate(blocks):
-            name = "User" if is_even(i) else "LLM"
+            name = get_name_by_app(app, index=i)
             yield (name, block, i)
 
 
 def is_even(n):
     return n % 2 == 0
+
+
+def get_browser_content():
+    return get_active_browser_content()
 
 
 # Example usage
@@ -191,13 +221,15 @@ if __name__ == "__main__":
     # exit()
 
     sleep(1)
+    browser = None
     while True:
         print(get_active_window().title.lower())
         sleep(3)
-        if is_browser_window(get_active_window()):
+        if browser := is_browser_window(get_active_window()):
             break
     content = get_active_browser_content()
+    print(content)
     print("-" * 50)
-    for name, block, i in split_chatgpt_content(content):
-        pprint(f"{i}: {name}: {block[:80]}\n", width=100)
+    for name, block, i in split_app_content(content, browser):
+        print(f"{i}: {name}: {block[:80]}\n")
     print("-" * 50)

@@ -4,6 +4,8 @@ import pyperclip
 import time
 import os
 
+from regex import T
+
 try:
     from lib.dieroller_utils import (
         roll_dice,
@@ -26,10 +28,19 @@ INPUT_LOG_FILE = "userinput.log"
 TRIGGER_KEY = {"HEADERS": "oikea ctrl+å", "CAPTURE": "oikea ctrl+enter", "ROLL": "oikea ctrl+ö"}
 
 
-class TriggerKeyMapping(Enum):
-    def __init__(self, key, mapping):
-        # set object attribute
-        setattr(self, key, mapping)
+class DotDict:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+
+    def __getattr__(self, item):
+        return self.__dict__.get(item)
+
+    def __setattr__(self, key, value):
+        self.__dict__[key] = value
+
+    def from_dict(self, dictionary):
+        self.__dict__.update(dictionary)
+        return self
 
 
 class KeyboardListener:
@@ -39,12 +50,11 @@ class KeyboardListener:
         mode=SYS_MODE,
         config_file=CONFIG_FILE,
         input_log_file=INPUT_LOG_FILE,
-        mapping=TRIGGER_KEY,
     ):
         self.SYS_MODE = mode
         self.CONFIG_FILE = config_file
         self.INPUT_LOG_FILE = input_log_file
-        self.TRIGGER_KEY = mapping
+        self.TRIGGER_KEY = DotDict().from_dict(TRIGGER_KEY)
 
     def generate_h_f_file(self):
         print(
@@ -114,7 +124,7 @@ class KeyboardListener:
                     f"Error parsing '{CONFIG_FILE}' for footer. Check for '{footer_start_tag}' and '{footer_end_tag}' tags. Using default footer."
                 )
                 footer = "--- DEFAULT FOOTER ---\n(Multiline Default)"
-
+            self.header, self.footer = header, footer
             return header, footer
 
         except Exception as e:
@@ -204,11 +214,36 @@ class KeyboardListener:
         except Exception as e:
             print(f"An error occurred: {e}")
 
+    def add_hotkey(self, key, func):
+        keyboard.add_hotkey(key, func)
+
     def start_listener(self):
         keyboard.add_hotkey(self.TRIGGER_KEY.HEADERS, lambda: self.add_header_footer())
         keyboard.add_hotkey(self.TRIGGER_KEY.CAPTURE, lambda: self.capture_input(deselect=True))
         keyboard.add_hotkey(self.TRIGGER_KEY.ROLL, lambda: self.insert_roll_result())
         keyboard.wait()
+
+    def print_help(self):
+        if self.header or self.footer:
+            header, footer = self.header, self.footer
+            print(self.TRIGGER_KEY)
+            print(
+                (
+                    "Script started. ",
+                    f"['{self.TRIGGER_KEY.HEADERS}']adds multiline header ",
+                    f"and footer from '{CONFIG_FILE}' to selected text.\n",
+                    f"['{self.TRIGGER_KEY.CAPTURE}']captures selected text to a file.\n",
+                    f"['{self.TRIGGER_KEY.ROLL}']rolls dice based on the selected text.\n",
+                    "Hotkeys can be changed in the script.\n",
+                )
+            )
+            print(f"Header:\n---\n{header}\n---\nFooter:\n---\n{footer}\n---")
+        else:
+            print(
+                f"Script started with default multiline header and footer as configuration file could not be loaded properly or was just created."
+            )
+            header = "--- DEFAULT HEADER ---\n(Multiline Default)"
+            footer = "--- DEFAULT FOOTER ---\n(Multiline Default)"
 
 
 if __name__ == "__main__":
@@ -224,25 +259,6 @@ if __name__ == "__main__":
     listener = KeyboardListener()
 
     header_footer_values = listener.load_header_footer_from_file()
-
-    if header_footer_values:
-        header, footer = header_footer_values
-        print(
-            (
-                "Script started. ",
-                f"['{listener.TRIGGER_KEY.HEADERS}']adds multiline header ",
-                f"and footer from '{CONFIG_FILE}' to selected text.\n",
-                f"['{listener.TRIGGER_KEY.CAPTURE}']captures selected text to a file.\n",
-                f"['{listener.TRIGGER_KEY.ROLL}']rolls dice based on the selected text.\n",
-                "Hotkeys can be changed in the script.\n",
-            )
-        )
-        print(f"Header:\n---\n{header}\n---\nFooter:\n---\n{footer}\n---")
-    else:
-        print(
-            f"Script started with default multiline header and footer as configuration file could not be loaded properly or was just created."
-        )
-        header = "--- DEFAULT HEADER ---\n(Multiline Default)"
-        footer = "--- DEFAULT FOOTER ---\n(Multiline Default)"
+    listener.print_help()
 
     listener.start_listener()
