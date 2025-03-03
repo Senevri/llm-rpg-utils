@@ -223,6 +223,10 @@ class KeyboardListener:
         keyboard.add_hotkey(self.TRIGGER_KEY.ROLL, lambda: self.insert_roll_result())
         keyboard.wait()
 
+    def stop_listener(self):
+        for key in self.TRIGGER_KEY.entries:
+            keyboard.remove_hotkey(key)
+
     def print_help(self):
         if self.header or self.footer:
             header, footer = self.header, self.footer

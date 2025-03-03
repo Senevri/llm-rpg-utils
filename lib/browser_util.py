@@ -4,7 +4,7 @@ import pygetwindow as gw
 import logging
 import keyboard
 from time import sleep
-from pywinauto import Application, WindowSpecification
+from pywinauto import Application, WindowSpecification, Desktop
 from pprint import pformat, pprint
 from gettext import find
 from custom_logger import get_custom_logger
@@ -38,8 +38,12 @@ def get_active_browser_content():
     active_window = get_active_window()
     # Check if the active window is a browser
     if is_browser_window(active_window):
+        # Print all available window titles
+        # windows = Desktop(backend="uia").windows()
+        # for w in windows:
+        #     print(w.window_text())
         # Connect to the browser window
-        app = Application(backend="uia").connect(title_re=active_window.title)
+        app = Application(backend="uia").connect(handle=active_window._hWnd)
         dlg: WindowSpecification = app.top_window()
 
         documents = dlg.descendants(control_type="Document")
@@ -208,10 +212,6 @@ def is_even(n):
     return n % 2 == 0
 
 
-def get_browser_content():
-    return get_active_browser_content()
-
-
 # Example usage
 if __name__ == "__main__":
     # keyboard.add_hotkey("ctrl+shift+alt+a", get_active_window)
@@ -225,11 +225,14 @@ if __name__ == "__main__":
     while True:
         print(get_active_window().title.lower())
         sleep(3)
+        title = str(get_active_window().title).replace(" ", "_")
+        title = title.replace(",", "")
+        print(title)
         if browser := is_browser_window(get_active_window()):
             break
     content = get_active_browser_content()
-    print(content)
+    print(content[:200])
     print("-" * 50)
-    for name, block, i in split_app_content(content, browser):
-        print(f"{i}: {name}: {block[:80]}\n")
-    print("-" * 50)
+    # for name, block, i in split_app_content(content, browser):
+    #    print(f"{i}: {name}: {block[:80]}\n")
+    # print("-" * 50)

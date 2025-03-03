@@ -40,10 +40,13 @@ def print_help():
 
 def capture_content():
     print("capture browser content")
+
     browser = is_browser_window(get_active_window())
     content = get_active_browser_content()
+    title = str(get_active_window().title).replace(" ", "_")
+    title = title.replace(",", "")
     if content:
-        with open(f"{browser}_content.txt", "w", encoding="UTF-8") as f:
+        with open(f"{title}_content.txt", "w", encoding="UTF-8") as f:
             blocks = split_app_content(content, app="chatgpt")
             for name, text, index in blocks:
                 f.write(f"{index}: {name}:\n{text}\n---\n")
@@ -68,4 +71,9 @@ if __name__ == "__main__":
     print(listener.TRIGGER_KEY)
     listener.print_help()
     if header and footer:
-        listener.start_listener()
+        try:
+            listener.start_listener()
+        except KeyboardInterrupt:
+            print("Caught KeyboardInterrupt (Ctrl+C).")
+            listener.stop_listener()
+            raise  # Re-raise the exception to pass it on

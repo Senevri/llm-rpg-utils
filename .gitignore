@@ -1,3 +1,5 @@
+crawl_results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -8,13 +10,14 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+
 build/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
+#lib/
 lib64/
 parts/
 sdist/
