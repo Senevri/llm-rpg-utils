@@ -99,7 +99,7 @@ async def update_textarea_content(content: Content):
 
 
 @app.post("/api/v1/update_config/")
-async def update_textarea_content(content: Content):
+async def update_config(content: Content):
     global APP_CONFIG
     logger.debug(f"update: {content}")
     if content.area == "textarea_config":
