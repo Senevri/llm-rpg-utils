@@ -4,225 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhanced Textarea</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            color: #ffa200;
-            background-color: #222;
-        }
-
-        button {
-            background-color: hsl(41, 55%, 49%);
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1f0f0f;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .textarea-container {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-            position: relative;            
-        }
-
-        textarea {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 4px;
-            resize: vertical;
-            font-size: 16px;
-            margin-bottom: 10px;
-            box-sizing: border-box;
-            background-color: #333;
-            color: #fff;
-            outline: none;            
-        }
-
-        .toggle-btn {
-            
-            padding: 8px 12px;
-            cursor: pointer;
-            color: #4CAF50;
-            border: none;
-            border-radius: 4px;
-            background-color: lightslategray;
-        }
-
-        .toggle-btn-container {
-            position: absolute;
-            right: 10px;
-            top: 10px;
-        }
-        .toggle-btn:hover {
-            background-color: #45a049;
-        }
-        
-        .hide-textarea {
-            visibility: hidden;
-            height: 0;
-            overflow: hidden;
-            padding: 0; /* Ensure padding is also zeroed out to fully collapse */
-            border: none; /* Ensure border is none */
-            margin-bottom: 0; /* Ensure margin is zero */
-        }
-
-        .show-textarea {
-            visibility: visible;
-            height: auto; /* Let height be determined by content, adjusted by JS */
-            overflow: visible; /* Allow overflow to be visible */
-            display:block
-            /* Keep padding, border, margin as defined for textarea normally */
-        }
-
-        .collapsible{
-
-        }
-        
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <button onclick="toggleTextareas('all')">Show All</button>
-        
+        <button id="btn_toggle_all" for="all">Show All</button>
+
         <!-- Individual textareas and their controls -->
         <div class="textareas">
         <label for="textarea1">Text Area 1</label>
             <div class="textarea-container" id="div_textarea1">
+                <div class="save-btn-container">
+                    <button class="save-btn" for="textarea1">💾</button>
+                </div>
                 <textarea class="show-textarea" id="textarea1" placeholder="Enter text..."></textarea>
                 <div class="toggle-btn-container">
-                    <button class="toggle-btn" onclick="toggleTextareas('textarea1')">▼</button>
+                    <button class="toggle-btn" for="textarea1">▼</button>
                 </div>
             </div>
+
             <label for="textarea2">Text Area 2</label>
             <div class="textarea-container" id="div_textarea2">
                 <textarea class="show-textarea" id="textarea2" placeholder="Enter text..."></textarea>
                 <div class="toggle-btn-container">
-                    <button class="toggle-btn" onclick="toggleTextareas('textarea2')">▼</button>
+                    <button class="toggle-btn" for="textarea2">▼</button>
                 </div>
             </div>
             <label for="textarea3">Text Area 3</label>
             <div class="textarea-container" id="div_textarea3">
                 <textarea class="show-textarea" id="textarea3" placeholder="Enter text..."></textarea>
                 <div class="toggle-btn-container">
-                    <button class="toggle-btn" onclick="toggleTextareas('textarea3')">▼</button>
+                    <button class="toggle-btn" for="textarea3">▼</button>
+                </div>
+
+            </div>
+            <label for="textarea_config">Config</label>
+            <div class="textarea-container" id="div_textarea_config">
+                <div class="save-btn-container">
+                    <button class="save-btn" for="textarea_config">💾</button>
+                </div>
+                <textarea class="show-textarea" id="textarea_config" placeholder="Enter text..."></textarea>
+                <div class="toggle-btn-container">
+                    <button class="toggle-btn" for="textarea_config">▼</button>
                 </div>
             </div>
         </div>
+        <div class="inforow"><label id="laststatus"></label></div>
     </div>
 
-    <script>
-        const base_url = "/api/v1"
+    <script src="script.js" type="application/javascript">
 
-        function adjustTextareaHeight(textarea) {
-                textarea.style.height = 'auto'; // Reset height to recalculate
-                textarea.style.height = textarea.scrollHeight + 'px';
-            }
-
-        function toggleTextareas(id) {
-            console.log("test")
-            if (id === 'all') {
-                // Show all textareas                
-                document.querySelectorAll('.textarea-container textarea').forEach(textarea => {
-                    textarea.classList.toggle('show-textarea');                    
-                    textarea.classList.toggle('hide-textarea');
-                    
-                });
-            } else {
-                // Toggle individual textarea
-                const textarea_div = document.querySelector(`#div_textarea${id}`); // Directly select the textarea within the container
-                
-                if (textarea_div) { // Check if textarea is found (important in case of typos or dynamic changes)
-                    textarea_div.classList.toggle('show-textarea'); // Use toggle to add/remove class
-                    textarea_div.classList.toggle('hide-textarea');
-                }
-                
-                
-                const textarea = document.querySelector(".textarea-container #"+id)                
-                if (textarea) { // Check if textarea is found (important in case of typos or dynamic changes)                                        
-                    textarea.classList.toggle('show-textarea'); // Use toggle to add/remove class
-                    textarea.classList.toggle('hide-textarea');                               
-                    if (textarea.classList.contains('show-textarea')) {
-                        adjustTextareaHeight(textarea);
-                    }
-                    else {
-                        textarea.style="height: 0px"
-                    }
-                    
-                } else {
-                    console.error(`Textarea with ID ${id} not found.`);
-                }
-            }
-        }        
-        function updateTextarea1(text) {
-            const textarea1 = document.getElementById('textarea1');
-            if (textarea1) {
-                textarea1.value = text;
-                textarea1.dispatchEvent(new Event('input'));
-            }
-        }
-
-        function fetchTextarea1Content() {
-            console.log(base_url + '/get_textarea1_content')
-            fetch(base_url + '/get_textarea1_content')            
-                .then(response => response.text())
-                .then(text => {
-                    console.log(text)
-                    updateTextarea1(text);
-                })
-                .catch(error => console.error('Error fetching textarea1 content:', error));
-        }
-
-        function sendTextarea1Content(text) {
-            fetch(base_url + '/update_textarea1_content', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain',
-                },
-                body: text,
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-            })
-            .catch(error => console.error('Error updating textarea1 content:', error));
-        }
-
-        document.getElementById('textarea1').addEventListener('input', function() {
-            sendTextarea1Content(this.value);
-        });
-
-        
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const textareas = document.querySelectorAll('textarea');
-            fetchTextarea1Content();
-            document.querySelectorAll('label').forEach(label => {
-                label.addEventListener('click', function() {
-                    target = label.getAttribute('for')
-                    toggleTextareas(target)
-                })
-            })
-            
-
-            textareas.forEach(textarea => {
-                textarea.addEventListener('input', function() {
-                    adjustTextareaHeight(this);
-                });
-                // Adjust height on initial load as well if there's default content
-                adjustTextareaHeight(textarea);
-            });
-});
     </script>
 </body>
 </html>

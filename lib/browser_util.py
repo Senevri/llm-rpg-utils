@@ -10,7 +10,7 @@ from gettext import find
 from custom_logger import get_custom_logger
 from bs4 import BeautifulSoup
 
-logger = get_custom_logger(__file__, "browser_util", add_date=True, console=True)
+logger = get_custom_logger(__file__, "browser_util", add_date=False, console=True)
 
 browsers = ["chrome", "firefox", "edge", "opera", "thorium", "brave", "safari", "joplin"]
 
