@@ -221,7 +221,7 @@ class KeyboardListener:
         keyboard.add_hotkey(key, func)
 
     def start_listener(self):
-        print("trigger keys:", self.TRIGGER_KEY)
+        #print("trigger keys:", self.TRIGGER_KEY)
         keyboard.add_hotkey(self.TRIGGER_KEY.HEADERS, lambda: self.add_header_footer())
         keyboard.add_hotkey(self.TRIGGER_KEY.CAPTURE, lambda: self.capture_input(deselect=True))
         keyboard.add_hotkey(self.TRIGGER_KEY.ROLL, lambda: self.insert_roll_result())
@@ -236,14 +236,14 @@ class KeyboardListener:
             header, footer = self.header, self.footer
             print(self.TRIGGER_KEY)
             print(
-                (
+                "\n".join([
                     "Script started. ",
                     f"['{self.TRIGGER_KEY.HEADERS}']adds multiline header ",
-                    f"and footer from '{CONFIG_FILE}' to selected text.\n",
-                    f"['{self.TRIGGER_KEY.CAPTURE}']captures selected text to a file.\n",
-                    f"['{self.TRIGGER_KEY.ROLL}']rolls dice based on the selected text.\n",
-                    "Hotkeys can be changed in the script.\n",
-                )
+                    f"and footer from '{CONFIG_FILE}' to selected text.",
+                    f"['{self.TRIGGER_KEY.CAPTURE}']captures selected text to a file.",
+                    f"['{self.TRIGGER_KEY.ROLL}']rolls dice based on the selected text.",
+                    "Hotkeys can be changed in the script.",
+                ])
             )
             print(f"Header:\n---\n{header}\n---\nFooter:\n---\n{footer}\n---")
         else:

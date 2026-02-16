@@ -3,7 +3,7 @@ import re
 import pygetwindow as gw
 import logging
 import keyboard
-from time import sleep
+from time import sleep, time
 from pywinauto import Application, WindowSpecification, Desktop
 from pprint import pformat, pprint
 from gettext import find
@@ -16,6 +16,49 @@ logger = get_custom_logger(__file__, "browser_util", add_date=False, console=Tru
 
 browsers = ["chrome", "firefox", "edge", "opera", "thorium", "brave", "safari", "joplin"]
 
+
+def capture_from_clipboard():
+    # _copy_all_and_deselect()
+    return get_transcript_from_clipboard()
+
+# ----------------------------------------------------------------------
+# 3️⃣ Automation: Ctrl+A → Ctrl+C → Esc (deselect)
+# ----------------------------------------------------------------------
+def _copy_all_and_deselect(pause: float = 0.15) -> None:
+    """
+    Simulate the keystrokes that a human would use:
+
+        1. Ctrl+A   – select everything on the page
+        2. Ctrl+C   – copy the selection to the clipboard
+        3. Esc      – clear the visual selection (optional but nice)
+
+    `pause` is the tiny delay between each key event; increase it if
+    your machine is slow or the browser needs a moment to react.
+    """
+    # Make sure no other modifier keys are stuck
+    keys = 'ctrl+shift+alt+win'
+    while any(keyboard.is_pressed(k) for k in keys.split('+')):
+        print(".", end="", flush=True)
+        sleep(pause)   # tiny sleep to avoid busy‑waiting
+
+    keyboard.release('ctrl')
+    keyboard.release('shift')
+    keyboard.release('alt')
+    keyboard.release('win')
+
+    # 1️⃣ Ctrl+A
+    keyboard.press_and_release('ctrl+a', do_press=True)
+    sleep(pause)
+
+    # 2️⃣ Ctrl+C
+    keyboard.press_and_release('ctrl+c', do_press=True)
+    sleep(pause)
+
+    keyboard.release('ctrl')
+
+    # 3️⃣ Esc – clears the highlight
+    keyboard.press_and_release('esc')
+    sleep(pause)
 
 def get_active_window():
     # Get the title of the active window

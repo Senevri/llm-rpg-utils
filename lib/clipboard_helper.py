@@ -14,7 +14,8 @@ import win32clipboard
 import win32con
 from pathlib import Path
 from bs4 import BeautifulSoup
-
+from typing import List, Tuple
+from html_to_markdown import convert as html_to_md
 
 # ----------------------------------------------------------------------
 # 1️⃣ Helper: turn the raw HTML clipboard payload into a plain HTML string
@@ -62,88 +63,128 @@ def get_transcript_from_clipboard() -> str:
         win32clipboard.CloseClipboard()
 
 
+
+
+def normalize_hr(md: str) -> str:
+    """
+    Ensure every ``---`` that separates blocks is surrounded by a blank line.
+    If the rule already has two new‑lines before it, it is left untouched.
+
+    The pattern works for both Unix (\\n) and Windows (\\r\\n) line endings.
+    """
+    # 1️⃣  Rule that is **not** already preceded by a blank line
+    #     (?<!\\n\\n)   – negative look‑behind (no two newlines)
+    #     (^|(?<=\\n))  – start of file or a single newline before the rule
+    #     (?P<hr>---)   – capture the three dashes
+    #     (\\r?\\n)     – the line‑break after the rule
+    #     (?=#+)        – the next line must start with a heading (##, ### …)
+    pattern = re.compile(
+        r'(?<!\n\n)(^|(?<=\n))(?P<hr>---)(\r?\n)(?=#+)',
+        flags=re.MULTILINE,
+    )
+    # Replace with two newlines + the rule + the original line‑break
+    md = pattern.sub(r'\n\n\g<hr>\n', md)
+
+    # 2️⃣  Catch the rare case where the rule is at the very end of the file
+    #     (no heading after it).  We still want a blank line before it.
+    md = re.sub(r'(?<!\n\n)(?P<hr>---)(\r?\n)$', r'\n\n\g<hr>\n', md, flags=re.MULTILINE)
+
+    # Replace with: two newlines + the rule + the original line‑break
+
+    user_txt = pattern.sub(r'\n\n\g<hr>\n', md)
+    user_txt= re.sub(r'.\n---', '\n\n---', user_txt)
+    hr_pattern="\n---\n"
+    indexof_hr = user_txt.find(hr_pattern)
+
+    if indexof_hr != -1:
+        if user_txt[indexof_hr-1] != "\n":
+            user_txt = user_txt.replace(hr_pattern, f"\n{hr_pattern}")
+
+    return user_txt
+
 # ----------------------------------------------------------------------
 # 3️⃣ Core extraction logic – walks the soup **once** and respects order
 # ----------------------------------------------------------------------
+
+
 def _html_to_transcript(html: str, keep_offsets: bool = False) -> str:
     """
-    Takes the raw HTML string produced by ChatGPT’s export and returns a
-    Markdown‑style transcript:
-
-        🤖 ASSISTANT:
-        …assistant text…
-
-        🗨️ USER:
-        …user text…
-
-    Parameters
-    ----------
-    html : str
-        The full HTML page (or a fragment) copied from ChatGPT.
-    keep_offsets : bool
-        If True, prepend each assistant paragraph with its `[start‑end]`
-        offset that appears in the original `data-start` / `data-end`
-        attributes.  Handy for debugging or aligning with the source file.
-
-    Returns
-    -------
-    str
-        The assembled transcript.
+    Convert a ChatGPT export (HTML) into a numbered Markdown transcript.
+    Handles:
+        • bold (**), italic (*)
+        • headings (# …)
+        • ordered / unordered lists
+        • horizontal rules (---)
+        • line breaks ( )
+        • optional [start‑end] offsets
     """
     soup = BeautifulSoup(html, "html.parser")
 
-    # The final ordered list of (speaker, text) tuples
-    conversation: list[tuple[str, str]] = []
-    current_assistant_div= None
-    assistant_conversation_block = None
+    conversation: List[Tuple[str, str]] = []          # (speaker, text)
+    assistant_buf: List[str] = []                    # collects lines for the current assistant turn
+    inside_assistant = False                         # are we inside <div class="markdown prose …"> ?
 
-    # Walk the tree depth‑first; this respects the natural document order.
+    # ------------------------------------------------------------------
+    # Helper – flush the current assistant buffer into the conversation
+    # ------------------------------------------------------------------
+    def flush_assistant():
+        if assistant_buf:
+            conversation.append(("assistant", "".join(assistant_buf).rstrip()))
+            assistant_buf.clear()
+
+    # ------------------------------------------------------------------
+    # Walk the tree in document order (depth‑first)
+    # ------------------------------------------------------------------
     for elem in soup.descendants:
-        if not getattr(elem, "attrs", None):
-            # print(elem)
-            continue  # skip NavigableString objects – we only care about tags
+        # Skip plain strings – we only care about Tag objects
+        prefix = ""
 
+        if not getattr(elem, "attrs", None):
+            continue
 
         classes = elem.get("class", [])
-        # --------------------------------------------------------------
-        # Assistant paragraphs – they live inside <div class="markdown prose …">
-        # --------------------------------------------------------------
-        if "markdown" in classes and "prose" in classes and elem.name == "div":
-            current_assistant_div = elem
-            assistant_conversation_block = ("assistant", "")  # placeholder; we'll fill in the text later
-            continue
 
-        if elem.name == "p" and current_assistant_div is not None:
-            # Collapse inner whitespace to a single space (so line‑breaks inside <p> become normal spaces)
-            txt = elem.get_text(separator=" ", strip=True)
-
-            if keep_offsets:
-                start = elem.get("data-start")
-                end   = elem.get("data-end")
-                if start and end:
-                    txt = f"[{start}-{end}] {txt}"
-            assistant_conversation_block = ("assistant", assistant_conversation_block[1] + txt + "\n")
+        # --------------------------------------------------------------
+        # 1️⃣  Detect the start of an assistant container
+        # --------------------------------------------------------------
+        if elem.name == "div" and "markdown" in classes and "prose" in classes:
+            flush_assistant()  # Close any pending assistant block before starting a new one
+            inside_assistant = True
+            transcript = html_to_md(elem.decode_contents())
+            # transcript.replace(f".\n---", f".\n\n---")
+            # transcript.replace("---\n", "\n---\n")
+            transcript = normalize_hr(transcript)
+            conversation.append(("assistant", transcript.strip()))
             continue
 
         # --------------------------------------------------------------
-        # User messages – the inner <div class="whitespace-pre-wrap">
+        # 3️⃣  User bubbles – they are outside the assistant container
         # --------------------------------------------------------------
-        elif "whitespace-pre-wrap" in classes:
-            if assistant_conversation_block is not None:
-                conversation.append(assistant_conversation_block)
-                assistant_conversation_block = None
-            current_assistant_div = None
-            # Preserve line breaks that were originally rendered as   or actual \n
-            txt = elem.get_text(separator="\n", strip=True)
-            conversation.append(("user", txt))
+        if "whitespace-pre-wrap" in classes:
+            # Close any pending assistant block before we record the user text
+            flush_assistant()
+            inside_assistant = False
+
+            # Preserve line breaks exactly as they appear in the HTML
+            user_md = elem.get_text(separator="\n", strip=True)
+            # Ensure that horizontal rules (---) are on their own lines
+            user_md = normalize_hr(user_md)
+            conversation.append(("user", user_md))
+            continue
 
     # ------------------------------------------------------------------
-    # Assemble the final Markdown transcript
+    # End of document – flush any remaining assistant text
     # ------------------------------------------------------------------
-    out_lines: list[str] = []
-    for speaker, text in conversation:
+    flush_assistant()
+
+    # ------------------------------------------------------------------
+    # 4️⃣  Assemble the final numbered Markdown transcript
+    # ------------------------------------------------------------------
+    out_lines: List[str] = []
+    for idx, (speaker, text) in enumerate(conversation, start=1):
         prefix = "🗨️ USER:" if speaker == "user" else "🤖 ASSISTANT:"
-        out_lines.append(f"{prefix}\n{text}\n")
+        out_lines.append(f"## {idx} {prefix}\n{text}\n")
+
     return "\n".join(out_lines)
 
 

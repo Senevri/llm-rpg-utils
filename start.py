@@ -2,14 +2,15 @@
 from textwrap import dedent
 import sys
 import os
+import keyboard
 from lib.textarea_util import KeyboardListener
 from lib.browser_util import (
     get_active_browser_content,
     get_active_window,
     is_browser_window,
     split_app_content,
+    capture_from_clipboard
 )
-from lib.clipboard_helper import get_transcript_from_clipboard
 
 # sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -53,9 +54,12 @@ def get_title():
     title = title.replace(":", "_")
     return title
 
-def capture_from_clipboard():
+def transcript_through_clipboard():
     print("capture from clipboard")
-    content = get_transcript_from_clipboard()
+
+    #keyboard.wait("oikea ctrl+shift+§", trigger_on_release=True)
+    content = capture_from_clipboard()
+    #print(content)
     title = get_title()
     with open(f"{title}_content.txt", "w", encoding="UTF-8") as f:
         f.write(content)
@@ -91,9 +95,11 @@ if __name__ == "__main__":
 
     listener = KeyboardListener()
     listener.add_hotkey("oikea ctrl+§", capture_content)
-    listener.add_hotkey("oikea ctrl+shift+§", capture_from_clipboard)
+    listener.add_hotkey("oikea ctrl+shift+§", transcript_through_clipboard)
     header, footer = listener.load_header_footer_from_file()
-    print("Trigger keys:", listener.TRIGGER_KEY)
+    print(f"Trigger keys:  ")
+    from pprint import pprint
+    pprint(listener.TRIGGER_KEY.__dict__)
     listener.print_help()
     if header and footer:
         try:
