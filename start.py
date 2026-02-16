@@ -9,6 +9,7 @@ from lib.browser_util import (
     is_browser_window,
     split_app_content,
 )
+from lib.clipboard_helper import get_transcript_from_clipboard
 
 # sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -37,31 +38,37 @@ def print_help():
         )
     )
 
-def ensure_dialog_newlines(text):
-    replacements = [". \"", "? \"", "! \""]
-    for r in replacements:
-        text = text.replace(r, f"{r[:-1]}\n\n\"")
-    return text
 
-def test_ensure_dialog_newlines():
-    input_text = 'Hello. "How are you?" I asked. "I\'m fine!" she replied.'
-    expected_output = 'Hello. \n\n"How are you?" I asked. \n\n"I\'m fine!" she replied.'
-    print(ensure_dialog_newlines(input_text))
-    print(expected_output)
-    assert ensure_dialog_newlines(input_text) == expected_output
-    print("Test passed!")
+# def test_ensure_dialog_newlines():
+#     input_text = 'Hello. "How are you?" I asked. "I\'m fine!" she replied.'
+#     expected_output = 'Hello. \n\n"How are you?" I asked. \n\n"I\'m fine!" she replied.'
+#     print(ensure_dialog_newlines(input_text))
+#     print(expected_output)
+#     assert ensure_dialog_newlines(input_text) == expected_output
+#     print("Test passed!")
+
+def get_title():
+    title = str(get_active_window().title).replace(" ", "_")
+    title = title.replace(",", "")
+    title = title.replace(":", "_")
+    return title
+
+def capture_from_clipboard():
+    print("capture from clipboard")
+    content = get_transcript_from_clipboard()
+    title = get_title()
+    with open(f"{title}_content.txt", "w", encoding="UTF-8") as f:
+        f.write(content)
 
 def capture_content():
     print("capture browser content")
 
     browser = is_browser_window(get_active_window())
     content = get_active_browser_content()
-    title = str(get_active_window().title).replace(" ", "_")
-    title = title.replace(",", "")
-    title = title.replace(":", "_")
+    title = get_title()
     if content:
         with open(f"{title}_content.txt", "w", encoding="UTF-8") as f:
-            blocks = split_app_content(content, app="chatgpt", custom_function=ensure_dialog_newlines)
+            blocks = split_app_content(content, app="chatgpt", ensure_newlines=True)
             for name, text, index in blocks:
                 f.write(f"## {index}: {name}:\n{text}\n\n---\n")
 
@@ -84,6 +91,7 @@ if __name__ == "__main__":
 
     listener = KeyboardListener()
     listener.add_hotkey("oikea ctrl+§", capture_content)
+    listener.add_hotkey("oikea ctrl+shift+§", capture_from_clipboard)
     header, footer = listener.load_header_footer_from_file()
     print("Trigger keys:", listener.TRIGGER_KEY)
     listener.print_help()

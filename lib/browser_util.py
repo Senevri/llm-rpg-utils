@@ -10,6 +10,8 @@ from gettext import find
 from custom_logger import get_custom_logger
 from bs4 import BeautifulSoup
 
+from clipboard_helper import get_transcript_from_clipboard
+
 logger = get_custom_logger(__file__, "browser_util", add_date=False, console=True)
 
 browsers = ["chrome", "firefox", "edge", "opera", "thorium", "brave", "safari", "joplin"]
@@ -44,6 +46,8 @@ def get_active_browser_content():
         #     print(w.window_text())
         # Connect to the browser window
         app = Application(backend="uia").connect(handle=active_window._hWnd)
+
+        # Get the top-level window
         dlg: WindowSpecification = app.top_window()
 
         documents = dlg.descendants(control_type="Document")
@@ -52,6 +56,8 @@ def get_active_browser_content():
         return doc_texts
     else:
         return ""
+
+
 
 
 def find_first_tag(content, begin_tag):
@@ -163,6 +169,20 @@ def split_joplin_text(text):
 
     return split_app_text(text, begin_tags, end_tags, removable_content, ignore_until_begin=True)
 
+import re
+_DIALOG_RE = re.compile(r'([.!?])\s+(["\u201C])')
+
+def add_newlines_before_quotes(text: str) -> str:
+
+    """
+    Insert a blank line before a quoted dialogue that follows a period,
+    question mark or exclamation mark.
+
+    Example:
+        He said. "Hello!" -> He said.\n\n"Hello!"
+    """
+    # The replacement keeps the punctuation (group 1) and inserts two newlines before the quote.
+    return _DIALOG_RE.sub(r'\1\n\n\2', text)
 
 def split_chatgpt_text(text):
     """
@@ -191,7 +211,7 @@ def get_name_by_app(app, **kwargs):
     return name
 
 
-def split_app_content(content, app="chatgpt", custom_function=None):
+def split_app_content(content, app="chatgpt", custom_function=None, ensure_newlines=False):
     functions = {
         "chatgpt": split_chatgpt_text,
         "joplin": split_joplin_text,
@@ -201,11 +221,14 @@ def split_app_content(content, app="chatgpt", custom_function=None):
 
     logger.info("Content length: " + str(len(content)))
     for text in content:
+
         blocks = functions[app](text)
         blocks = [block for block in blocks if len(block) > 0]
 
         for i, block in enumerate(blocks):
             name = get_name_by_app(app, index=i)
+            if ensure_newlines:
+                text = add_newlines_before_quotes(text)
             yield (name, block, i)
 
 
