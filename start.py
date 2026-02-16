@@ -37,6 +37,19 @@ def print_help():
         )
     )
 
+def ensure_dialog_newlines(text):
+    replacements = [". \"", "? \"", "! \""]
+    for r in replacements:
+        text = text.replace(r, f"{r[:-1]}\n\n\"")
+    return text
+
+def test_ensure_dialog_newlines():
+    input_text = 'Hello. "How are you?" I asked. "I\'m fine!" she replied.'
+    expected_output = 'Hello. \n\n"How are you?" I asked. \n\n"I\'m fine!" she replied.'
+    print(ensure_dialog_newlines(input_text))
+    print(expected_output)
+    assert ensure_dialog_newlines(input_text) == expected_output
+    print("Test passed!")
 
 def capture_content():
     print("capture browser content")
@@ -45,11 +58,12 @@ def capture_content():
     content = get_active_browser_content()
     title = str(get_active_window().title).replace(" ", "_")
     title = title.replace(",", "")
+    title = title.replace(":", "_")
     if content:
         with open(f"{title}_content.txt", "w", encoding="UTF-8") as f:
-            blocks = split_app_content(content, app="chatgpt")
+            blocks = split_app_content(content, app="chatgpt", custom_function=ensure_dialog_newlines)
             for name, text, index in blocks:
-                f.write(f"{index}: {name}:\n{text}\n---\n")
+                f.write(f"## {index}: {name}:\n{text}\n\n---\n")
 
 
 if __name__ == "__main__":
@@ -65,10 +79,13 @@ if __name__ == "__main__":
                 print_help()
                 exit()
 
+    # test_ensure_dialog_newlines()
+    # exit()
+
     listener = KeyboardListener()
     listener.add_hotkey("oikea ctrl+§", capture_content)
     header, footer = listener.load_header_footer_from_file()
-    print(listener.TRIGGER_KEY)
+    print("Trigger keys:", listener.TRIGGER_KEY)
     listener.print_help()
     if header and footer:
         try:

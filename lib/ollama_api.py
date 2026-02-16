@@ -72,6 +72,7 @@ if __name__ == "__main__":
     for model in result["models"]:
         logger.info(model["name"])
     msg = "give me a function that generates fibonacci sequence in python"
+    # responses = api.generate("deepseek-coder:6.7b", msg, stream=True)
     responses = api.chat("deepseek-coder:6.7b", msg, stream=True)
     for response in responses:
         logger.info(response)

@@ -25,7 +25,10 @@ SYS_MODE = "BESM"
 CONFIG_FILE = "pinned.txt"
 INPUT_LOG_FILE = "userinput.log"
 # Fixme: localizations for different systems
-TRIGGER_KEY = {"HEADERS": "oikea ctrl+å", "CAPTURE": "oikea ctrl+enter", "ROLL": "oikea ctrl+ö"}
+TRIGGER_KEY = {
+    "HEADERS": "oikea ctrl+å",
+    "CAPTURE": "oikea ctrl+enter",
+    "ROLL": "oikea ctrl+ö"}
 
 
 class DotDict:
@@ -180,7 +183,7 @@ class KeyboardListener:
                     file.write(f"{text_content}\n---\n")
             return text_content
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred capturing input: {e}")
 
     def insert_roll_result(self):
         try:
@@ -212,12 +215,13 @@ class KeyboardListener:
                 # Simulate Ctrl+V (Paste)
                 keyboard.press_and_release("ctrl+v")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred rolling: {e}")
 
     def add_hotkey(self, key, func):
         keyboard.add_hotkey(key, func)
 
     def start_listener(self):
+        print("trigger keys:", self.TRIGGER_KEY)
         keyboard.add_hotkey(self.TRIGGER_KEY.HEADERS, lambda: self.add_header_footer())
         keyboard.add_hotkey(self.TRIGGER_KEY.CAPTURE, lambda: self.capture_input(deselect=True))
         keyboard.add_hotkey(self.TRIGGER_KEY.ROLL, lambda: self.insert_roll_result())
