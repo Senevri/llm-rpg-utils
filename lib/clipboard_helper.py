@@ -166,7 +166,14 @@ def _html_to_transcript(html: str, keep_offsets: bool = False) -> str:
             inside_assistant = False
 
             # Preserve line breaks exactly as they appear in the HTML
-            user_md = elem.get_text(separator="\n", strip=True)
+            user_md = elem.get_text(separator="\n", strip=False)
+
+            # Add paragraph breaks
+            user_md = user_md.replace("\"  ", "\"\n\n")
+
+            # Other formatting rules?
+
+
             # Ensure that horizontal rules (---) are on their own lines
             user_md = normalize_hr(user_md)
             conversation.append(("user", user_md))

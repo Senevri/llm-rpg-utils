@@ -71,10 +71,14 @@ if __name__ == "__main__":
     result = api.list_models()
     for model in result["models"]:
         logger.info(model["name"])
-    msg = "give me a function that generates fibonacci sequence in python"
+    msg = "generate a campaign idea around a urban fantasy police procedural"
     # responses = api.generate("deepseek-coder:6.7b", msg, stream=True)
-    responses = api.chat("deepseek-coder:6.7b", msg, stream=True)
-    for response in responses:
-        logger.info(response)
+    responses = api.chat("ALIENTELLIGENCE/roleplaymaster", msg, stream=True)
+    # for response in responses:
+    #     logger.info(response)
 
-    # logger.info(pformat(result))
+    from pprint import pprint
+    for response in responses:
+        pprint(response[0])
+        pprint(response[1])
+    # todo: fix requests.exceptions.HTTPError: 404 Client Error: Not Found for url: http://192.168.1.109:11434/api/generate
