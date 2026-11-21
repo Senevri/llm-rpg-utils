@@ -58,23 +58,28 @@ class DieRoller(tk.Tk):
         self.result_label = tk.Label(self, text="Result:", font=large_font)
         self.result_label.grid(row=9, column=0, columnspan=2, padx=10, pady=10)
 
-        # Run the application
+        self.diff_desc_label = tk.Label(self, text="Difficulty: ", font=large_font)
+        self.diff_desc_label.grid(row=10, column=0, columnspan=2, padx=10, pady=10)
 
     def click_roll_dice(self):
-        target = int(self.target_entry.get())
-        difficulty = int(self.difficulty_entry.get() or 0)
-        bonus = int(self.bonus_entry.get() or 0)
-        result = roll_dice(target, difficulty, bonus)
-        self.update_ui(result)
+        try:
+            target = int(self.target_entry.get())
+            difficulty = int(self.difficulty_entry.get() or 0)
+            bonus = int(self.bonus_entry.get() or 0)
+            result = roll_dice(target, difficulty, bonus)
+            self.update_ui(result)
+        except ValueError:
+            self.result_label.config(text="Error: Please enter valid numbers")
 
     def update_ui(self, roll_result):
-        die1, die2, total, modified_total, difference, result_description = roll_result
+        die1, die2, total, modified_total, difference, result_description, diff_desc = roll_result
         self.die1_label.config(text=f"Die 1: {die1}")
         self.die2_label.config(text=f"Die 2: {die2}")
         self.total_label.config(text=f"Total: {total}")
         self.modified_total_label.config(text=f"Modified Total: {modified_total}")
         self.difference_label.config(text=f"Difference: {difference}")
         self.result_label.config(text=f"Result: {result_description}")
+        self.diff_desc_label.config(text=f"Difficulty: {diff_desc}")
 
 
 if __name__ == "__main__":

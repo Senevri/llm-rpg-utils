@@ -37,6 +37,13 @@ def _strip_html_clipboard(raw_bytes: bytes) -> str:
     end   = int(end_match.group(1))
     return raw_bytes[start:end].decode('utf-8', errors='replace')
 
+def put_content_on_clipboard(content):
+    win32clipboard.OpenClipboard()
+    try:
+        _format = win32clipboard.RegisterClipboardFormat("HTML Format")
+        win32clipboard.SetClipboardData(_format, content)
+    finally:
+        win32clipboard.CloseClipboard()
 
 # ----------------------------------------------------------------------
 # 2️⃣ Main clipboard‑reading routine
@@ -59,6 +66,22 @@ def get_transcript_from_clipboard() -> str:
 
         # Convert the HTML (or plain text) into a transcript
         return _html_to_transcript(html)
+    finally:
+        win32clipboard.CloseClipboard()
+
+def get_markdown_from_clipboard():
+    win32clipboard.OpenClipboard()
+    try:
+        html_fmt = win32clipboard.RegisterClipboardFormat('HTML Format')
+        if win32clipboard.IsClipboardFormatAvailable(html_fmt):
+            raw = win32clipboard.GetClipboardData(html_fmt)          # bytes
+            html = _strip_html_clipboard(raw)
+        else:
+            # Fallback – plain Unicode text (no HTML markup)
+            html = win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
+
+        # Convert the HTML (or plain text) into a transcript
+        return html_to_md(html).content
     finally:
         win32clipboard.CloseClipboard()
 
@@ -132,6 +155,7 @@ def _html_to_transcript(html: str, keep_offsets: bool = False) -> str:
             conversation.append(("assistant", "".join(assistant_buf).rstrip()))
             assistant_buf.clear()
 
+
     # ------------------------------------------------------------------
     # Walk the tree in document order (depth‑first)
     # ------------------------------------------------------------------
@@ -143,39 +167,63 @@ def _html_to_transcript(html: str, keep_offsets: bool = False) -> str:
             continue
 
         classes = elem.get("class", [])
-
+        role = elem.get("data-conversation-role", "") # Very chatgpt specific
+        textstyle = elem.get("data-markdown-text-style")
         # --------------------------------------------------------------
         # 1️⃣  Detect the start of an assistant container
         # --------------------------------------------------------------
-        if elem.name == "div" and "markdown" in classes and "prose" in classes:
-            flush_assistant()  # Close any pending assistant block before starting a new one
-            inside_assistant = True
-            transcript = html_to_md(elem.decode_contents())
-            # transcript.replace(f".\n---", f".\n\n---")
-            # transcript.replace("---\n", "\n---\n")
-            transcript = normalize_hr(transcript)
-            conversation.append(("assistant", transcript.strip()))
+
+        if textstyle == "assistant-message":
+        #     #find first div with paragraph
+        #     #elem = elem.find("p").findParent("div")
+        #     inside_assistant=True
+        # if (elem.name=="div" and any("prose" in e.lower() for e in classes)
+        #     and not any("user-message" in e.lower() for e in classes)):
+            #or elem.name == "div" and "Markdown" in classes and "prose" in classes:)
+        # if (elem.name == "div" and "prose" in classes):
+            if not inside_assistant:
+                flush_assistant()  # Close any pending assistant block before starting a new one
+            inside_assistant=True
+
+            transcript = html_to_md(elem.decode_contents()).content
+            transcript = transcript.strip()
+            if transcript:
+                if len(conversation)>0:
+                    if conversation[-1][0]=="assistant":
+                        continue
+                # transcript.replace(f".\n---", f".\n\n---")
+                # transcript.replace("---\n", "\n---\n")
+                transcript = normalize_hr(transcript)
+            #    if transcript != conversation[-1]:
+                conversation.append(("assistant", transcript))
             continue
 
         # --------------------------------------------------------------
         # 3️⃣  User bubbles – they are outside the assistant container
         # --------------------------------------------------------------
-        if "whitespace-pre-wrap" in classes:
+        #if "whitespace-pre-wrap" in classes or "user-message" in classes:
+        if (any("user-message" in e.lower() for e in classes)
+            or any("bubble" in e.lower() for e in classes)):
             # Close any pending assistant block before we record the user text
-            flush_assistant()
+            if inside_assistant:
+                flush_assistant()
             inside_assistant = False
 
             # Preserve line breaks exactly as they appear in the HTML
             user_md = elem.get_text(separator="\n", strip=False)
+
+            if len(conversation)>0:
+                if conversation[-1][0]=="user":
+                    continue
 
             # Add paragraph breaks
             user_md = user_md.replace("\"  ", "\"\n\n")
 
             # Other formatting rules?
 
-
             # Ensure that horizontal rules (---) are on their own lines
             user_md = normalize_hr(user_md)
+            #if len(conversation) < 1 or user_md != conversation[-1]:
             conversation.append(("user", user_md))
             continue
 
@@ -188,9 +236,17 @@ def _html_to_transcript(html: str, keep_offsets: bool = False) -> str:
     # 4️⃣  Assemble the final numbered Markdown transcript
     # ------------------------------------------------------------------
     out_lines: List[str] = []
-    for idx, (speaker, text) in enumerate(conversation, start=1):
-        prefix = "🗨️ USER:" if speaker == "user" else "🤖 ASSISTANT:"
-        out_lines.append(f"## {idx} {prefix}\n{text}\n")
+    last_speaker = None
+    idx = 1
+    for speaker, text in conversation:
+        if speaker != last_speaker:
+            idx += 1
+            prefix = "🗨️ USER:" if speaker == "user" else "🤖 ASSISTANT:"
+            prefix = f"\n## {idx} " + prefix + "\n"
+        else:
+            prefix=""
+        out_lines.append(f"{prefix}{text}\n")
+        last_speaker=speaker
 
     return "\n".join(out_lines)
 
