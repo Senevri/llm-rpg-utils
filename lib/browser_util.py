@@ -1,14 +1,19 @@
 from math import e
 import re
+import html
+import inspect
 import pygetwindow as gw
 import logging
 import keyboard
 from time import sleep, time
 from pywinauto import Application, WindowSpecification, Desktop
+from pywinauto.controls.uiawrapper import UIAWrapper
 from pprint import pformat, pprint
 from gettext import find
+from typing import List
 from custom_logger import get_custom_logger
 from bs4 import BeautifulSoup
+from html_to_markdown import convert as convert_to_md
 
 from clipboard_helper import get_transcript_from_clipboard
 
@@ -60,6 +65,103 @@ def _copy_all_and_deselect(pause: float = 0.15) -> None:
     keyboard.press_and_release('esc')
     sleep(pause)
 
+
+
+def render_elements(doc_element):
+
+    out = []
+    code_tokens = []
+    in_code = False
+    in_ul = False
+    current_li_parts = []
+
+    def flush_code():
+        nonlocal code_tokens, in_code
+        if in_code:
+            code_text = "".join(code_tokens)
+            out.append(f"<pre><code>{html.escape(code_text)}</code></pre>")
+            code_tokens = []
+            in_code = False
+
+    def flush_li():
+        nonlocal current_li_parts
+        if current_li_parts:
+            li_html = "".join(current_li_parts).strip()
+            if li_html:
+                out.append(f"<li>{li_html}</li>")
+            current_li_parts = []
+
+    def flush_ul():
+        nonlocal in_ul
+        flush_li()
+        if in_ul:
+            out.append("</ul>")
+            in_ul = False
+
+    for d in doc_element.descendants():
+        info = d.element_info
+        ct = info.control_type
+        name = info.name or ""
+        parent = d.parent()
+        pct = parent.element_info.control_type if parent else None
+        p = parent.element_info
+        #pprint((p.name, p.control_type, info.name, info.control_type))
+
+        # 1. Code block tokens inside an Edit container
+        if pct == "Edit" and ct == "Text":
+            flush_ul()
+            in_code = True
+
+            code_tokens.append(name)
+            continue
+        elif in_code and not (pct == "Edit" and ct == "Text"):
+            flush_code()
+
+        # 2. List and ListItem nodes
+        if ct == "List":
+            flush_li()
+            if not in_ul:
+                out.append("<ul>")
+                in_ul = True
+            continue
+
+        if ct == "ListItem":
+            flush_li()
+            if not in_ul:
+                out.append("<ul>")
+                in_ul = True
+            continue
+
+        if pct == "ListItem" and ct == "Text":
+            cleaned = name.lstrip("•▪◦ ").strip() if not current_li_parts else name
+            if cleaned:
+                current_li_parts.append(html.escape(cleaned))
+            continue
+
+        # 3. Any other Text node outside ListItem/Edit
+        if ct == "Text" and name.strip():
+            flush_ul()
+            out.append(f"<p>{html.escape(name)}</p>")
+
+    flush_code()
+    flush_ul()
+    return "".join(out)
+
+def find_browser(qualifier = None):
+    windows = gw.getAllWindows()
+    for w in windows:
+        if browser := is_browser_window(w):
+            if qualifier:
+                if browser != qualifier:
+                    continue
+            return w
+
+def find_window(searchstr):
+    windows = gw.getWindowsWithTitle(searchstr)
+    print(f"found {len(windows)} windows")
+    return windows
+
+
 def get_active_window():
     # Get the title of the active window
     active_window = gw.getActiveWindow()
@@ -67,6 +169,20 @@ def get_active_window():
     if active_window is None:
         return "No active window found."
     return active_window
+
+def get_window_as_markdown(active_window):
+    content = get_active_browser_documents()
+    html_parts = []
+    in_list = False
+    list_item_open = False
+    prev_control_type = None
+    in_button_sequence = None
+
+    for i in content:
+        html_parts.append(render_elements(i))
+
+    raw_html = "".join(html_parts)
+    return convert_to_md(raw_html).content
 
 
 def is_browser_window(active_window):
@@ -78,6 +194,23 @@ def is_browser_window(active_window):
             return browser
     return False
 
+def get_active_browser_documents() -> List[UIAWrapper]:
+    active_window = get_active_window()
+    # Check if the active window is a browser
+    if is_browser_window(active_window):
+        # Print all available window titles
+        # windows = Desktop(backend="uia").windows()
+        # for w in windows:
+        #     print(w.window_text())
+        # Connect to the browser window
+        app = Application(backend="uia").connect(handle=active_window._hWnd)
+
+        # Get the top-level window
+        dlg: WindowSpecification = app.top_window()
+
+        documents:List[UIAWrapper] = dlg.descendants(control_type="Document")
+        # Get the HTML content of the page
+        return documents
 
 def get_active_browser_content():
     active_window = get_active_window()
@@ -93,9 +226,9 @@ def get_active_browser_content():
         # Get the top-level window
         dlg: WindowSpecification = app.top_window()
 
-        documents = dlg.descendants(control_type="Document")
+        documents:List[UIAWrapper] = dlg.descendants(control_type="Document")
         # Get the HTML content of the page
-        doc_texts = [document.window_text() for document in documents]
+        doc_texts = [document.texts() for document in documents]
         return doc_texts
     else:
         return ""
